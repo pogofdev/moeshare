@@ -1,13 +1,13 @@
 version: '3.8'
 services:
   moeshare:
-    image: maxsrl/moeshare
+    image: poisongas/moeshare
     container_name: moeshare
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - ./uploads:/opt/moeshare/uploads 
+      - ./uploads:/opt/moeshare/uploads
       - ./public:/opt/moeshare/public
       - ./db:/opt/moeshare/db
       - type: bind
@@ -20,7 +20,7 @@ services:
     tty: true
     environment:
       - NODE_ENV=production
-      
+
       - AUDIO_FORMATS=.mp3,.wav,.ogg,.aac,.flac # Unterstützte Audioformate
       - VIDEO_FORMATS=.mp4,.avi,.mkv,.mov,.wmv # Unterstützte Videoformate
       - IMAGE_FORMATS=.jpg,.jpeg,.png,.bmp,.svg,.webp,.tiff # Unterstützte Bildformate

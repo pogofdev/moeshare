@@ -35,7 +35,7 @@ const USE_HLS = process.env.USE_HLS === 'true';
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/file', express.static(path.join(__dirname, 'uploads')));
 
 if (process.env.ALLOW_METRICS === 'true') {
   const Sentry = require("@sentry/node");
@@ -197,7 +197,7 @@ const createDirectoriesForAllUsers = async () => {
     users.forEach(users => {
       const uploadPath = path.join(__dirname, 'uploads', users);
       fs.mkdirSync(uploadPath, { recursive: true });
-    
+
       const userPreviewPath = path.join(uploadPath, 'preview');
       fs.mkdirSync(userPreviewPath, { recursive: true });
 
@@ -210,12 +210,12 @@ const createDirectoriesForAllUsers = async () => {
           console.error(clc.red('[INFO > Cleanup] | » Fehler beim Löschen der Unbeendete Aufgabe:', err));
           return;
         }
-      
+
         for (const file of files) {
           if (file.startsWith(prefix)) {
             const baseName = file.slice(prefix.length);
             const matchingFiles = files.filter((f) => f.startsWith(baseName));
-            
+
             matchingFiles.forEach((matchingFile) => {
               const filePath = path.join(m3u8Path, matchingFile);
               fs.unlink(filePath, (unlinkErr) => {
@@ -612,12 +612,12 @@ app.post('/upload', authenticate, upload, TokenUsername, async (req, res) => {
 
   res.json({
     success: true,
-    file: `${process.env.BASE_URL}/uploads/${req.TokenUsername}/${filename}`,
+    file: `${process.env.BASE_URL}/file/${req.TokenUsername}/${filename}`,
     view: `${process.env.BASE_URL}/view/${filename}`,
     preview: (USE_PREVIEW && IMAGE_FORMATS.some(format => filename.endsWith(format)))
-      ? `${process.env.BASE_URL}/uploads/${req.TokenUsername}/preview/${filename}`
-      : `${process.env.BASE_URL}/uploads/${req.TokenUsername}/${filename}`,
-    delete: `${process.env.BASE_URL}/delete/${filename}`,
+      ? `${process.env.BASE_URL}/file/${req.TokenUsername}/preview/${filename}`
+      : `${process.env.BASE_URL}/file/${req.TokenUsername}/${filename}`,
+    delete: `${process.env.BASE_URL}/file/${req.TokenUsername}/${filename}`,
   });
 
   const COLOR_COUNT = 256;
@@ -678,7 +678,7 @@ if (USE_DOMINANT_COLOR === true) {
   const isVideo = VIDEO_FORMATS.some(format => filename.endsWith(format));
 
   let resolution;
-  
+
   if (isImage) {
     try {
       resolution = await getImageResolution(filePath);
@@ -696,7 +696,7 @@ if (USE_DOMINANT_COLOR === true) {
   } else {
     resolution = { width: 0, height: 0 };
   }
-  
+
   if (isVideo && USE_HLS) {
     ffmpeg.setFfmpegPath(ffmpegInstaller.path);
     fs.writeFileSync(`${m3u8PathWithoutFilename}/conversionStarted-${filename.split('.')[0]}`, '');
@@ -715,16 +715,16 @@ if (USE_DOMINANT_COLOR === true) {
         console.log(clc.green('[INFO] | » Video wurde erfolgreich umgewandelt.'));
         fs.unlink(`${m3u8PathWithoutFilename}/conversionStarted-${filename.split('.')[0]}`, (err) => {
           if (err) {
-            console.error(clc.red('[ERROR] | » Fehler beim Löschen der conversionStarted-Datei:', err));        
+            console.error(clc.red('[ERROR] | » Fehler beim Löschen der conversionStarted-Datei:', err));
           } else {}
         });
         fs.writeFileSync(`${m3u8PathWithoutFilename}/conversionComplete-${filename.split('.')[0]}`, '');
       })
       .on('error', (err, stdout, stderr) => {
-        console.error(clc.red('[ERROR] | » FFmpeg Fehler:', err));        
+        console.error(clc.red('[ERROR] | » FFmpeg Fehler:', err));
         console.error(clc.red('[ERROR] | » FFmpeg STDERR:', stderr));
       });
-    
+
     ffmpegProcess.run();
   }
 
@@ -757,11 +757,11 @@ if (USE_DOMINANT_COLOR === true) {
   const saveFileDataToDatabase = async (username, filename, creationDate, sizeInMB, sizeInBytes, dominantColor, resolution) => {
     const query = 'INSERT INTO file_data (username, filename, creation_date, size_mb, size_bytes, dominant_color, resolution_width, resolution_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
     const values = [username, filename, creationDate, sizeInMB, sizeInBytes, dominantColor, resolution.width, resolution.height];
-  
+
     db.run(query, values, async (error) => {
       if (error) {
         console.error(clc.red('[ERROR] | » Fehler beim Speichern der Dateidaten in die Datenbank:', error.message));
-  
+
         const webhookData = {
           embeds: [
             {
@@ -772,7 +772,7 @@ if (USE_DOMINANT_COLOR === true) {
           ],
           username: DISCORD_WEBHOOK_NAME,
         };
-  
+
         if (process.env.LOGS !== 'false') {
           try {
             await axios.post(DISCORD_WEBHOOK_URL, webhookData);
@@ -782,7 +782,7 @@ if (USE_DOMINANT_COLOR === true) {
         }
       } else {
         console.log(clc.green('[INFO] | » Dateidaten erfolgreich in die Datenbank gespeichert.'));
-  
+
         const webhookData = {
           embeds: [
             {
@@ -793,7 +793,7 @@ if (USE_DOMINANT_COLOR === true) {
           ],
           username: DISCORD_WEBHOOK_NAME,
         };
-  
+
         if (process.env.LOGS !== 'false') {
           try {
             await axios.post(DISCORD_WEBHOOK_URL, webhookData);
@@ -804,7 +804,7 @@ if (USE_DOMINANT_COLOR === true) {
       }
     });
   };
-  
+
   saveFileDataToDatabase(req.user.username, filename, creationDate, sizeInMB, sizeInBytes, dominantColor, resolution);
   const webhookData = {
     embeds: [
@@ -1040,7 +1040,7 @@ app.get('/view/:filename', async (req, res) => {
             const isImageWithGif = IMAGE_FORMATS.some(format => filename.endsWith(format));
             const isAudio = AUDIO_FORMATS.some(format => filename.endsWith(format));
             const isVideo = VIDEO_FORMATS.some(format => filename.endsWith(format));
-            
+
             let videoHLSText = '';
 
             if (USE_HLS && isConversionStarted) {
@@ -1064,7 +1064,7 @@ app.get('/view/:filename', async (req, res) => {
               <video id="video" controls></video>
               <script>
                   var video = document.getElementById('video');
-                  var videoSrc = '/uploads/${username}/m3u8/${filename.split('.')[0]}.m3u8';
+                  var videoSrc = '/file/${username}/m3u8/${filename.split('.')[0]}.m3u8';
                   if (video.canPlayType('application/vnd.apple.mpegurl')) {
                     video.src = videoSrc;
                   } else if (Hls.isSupported()) {
@@ -1075,31 +1075,31 @@ app.get('/view/:filename', async (req, res) => {
                 </script>`;
            } else {
               video = `<video controls>
-              <source src="/uploads/${username}/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height}>
+              <source src="/file/${username}/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height}>
               </video>`;
             }
 
             let metaTag = '';
 
             if (isImage) {
-              metaTag = `<meta property="og:image" content="${BASE_URL}/uploads/${username}/${filename}" />
+              metaTag = `<meta property="og:image" content="${BASE_URL}/file/${username}/${filename}" />
         <meta property="og:type" content="image.other"/>
-        <meta property="og:image" content="${BASE_URL}/uploads/${username}/${filename}" />
-        <meta property="og:image:secure_url" content="${BASE_URL}/uploads/${username}/${filename}" />
+        <meta property="og:image" content="${BASE_URL}/file/${username}/${filename}" />
+        <meta property="og:image:secure_url" content="${BASE_URL}/file/${username}/${filename}" />
         <meta property="og:image:type" content="image.other" />
         <meta property="og:image:alt" content="BILD" />
         <meta property="og:image:width" content="${fileData.resolution_width}" />
         <meta property="og:image:height" content="${fileData.resolution_height}" />
         <meta name="twitter:card" content="summary_large_image">`;
             } else if (isVideo) {
-              metaTag = `<meta property="og:video" content="${BASE_URL}/uploads/${username}/${filename}" />
-        <meta property="og:video:secure_url" content="${BASE_URL}/uploads/${username}/${filename}" />
+              metaTag = `<meta property="og:video" content="${BASE_URL}/file/${username}/${filename}" />
+        <meta property="og:video:secure_url" content="${BASE_URL}/file/${username}/${filename}" />
         <meta property="og:type" content="video.other"/>
         <meta property="og:video:width" content="${fileData.resolution_width}" />
         <meta property="og:video:height" content="${fileData.resolution_height}" />`;
             } else if (isAudio) {
-              metaTag = `<meta property="og:audio" content="${BASE_URL}/uploads/${username}/${filename}" />
-        <meta property="og:audio:secure_url" content="${BASE_URL}/uploads/${username}/${filename}" />
+              metaTag = `<meta property="og:audio" content="${BASE_URL}/file/${username}/${filename}" />
+        <meta property="og:audio:secure_url" content="${BASE_URL}/file/${username}/${filename}" />
         <meta property="og:audio:type" content="audio.other" />`;
             }
 
@@ -1310,25 +1310,25 @@ app.get('/view/:filename', async (req, res) => {
             isAudio
             ? `
             <audio controls>
-                <source src="/uploads/${username}/${filename}">
+                <source src="/file/${username}/${filename}">
             </audio>
             `
             : isVideo
             ? `${video}`
             : filename.endsWith('.gif')
-            ? `<img src="/uploads/${username}/${filename}" alt="GIF" />`
+            ? `<img src="/file/${username}/${filename}" alt="GIF" />`
             : isImage
             ? USE_PREVIEW
-            ? `<img src="/uploads/${username}/preview/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Bild Preview" />`
-            : `<img src="/uploads/${username}/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Bild" />`
+            ? `<img src="/file/${username}/preview/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Bild Preview" />`
+            : `<img src="/file/${username}/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Bild" />`
             : fs.existsSync(previewPath)
-            ? `<img src="/uploads/${username}/preview/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Preview" />`
+            ? `<img src="/file/${username}/preview/${filename}" width=${fileData.resolution_width} height=${fileData.resolution_height} alt="Preview" />`
             : `<img src="${BASE_URL}/assets/file.png" alt="Datei" />`
             }
         </div>
         <div class="button-container">
             <button class="button" type="button" onclick="window.open('/download/${filename}')">Herunterladen</button>
-            <button class="button" type="button" onclick="window.location.href = '/uploads/${username}/${filename}';">Direct Link</button>
+            <button class="button" type="button" onclick="window.location.href = '/file/${username}/${filename}';">Direct Link</button>
         </div>
         <div class="stats">
             Hochgeladen von: ${username}<br>
@@ -1397,7 +1397,7 @@ app.get('/oembed/:filename', async (req, res) => {
         height: fileData.resolution_height,
         provider_name: PROVIDER_NAME,
         provider_url: PROVIDER_URL,
-        html: `<iframe src="${BASE_URL}/uploads/${username}/${filename}" width="${fileData.resolution_width}" height="${fileData.resolution_height}" frameborder="0"></iframe>`
+        html: `<iframe src="${BASE_URL}/file/${username}/${filename}" width="${fileData.resolution_width}" height="${fileData.resolution_height}" frameborder="0"></iframe>`
       };
 
       res.json(oembedResponse);
